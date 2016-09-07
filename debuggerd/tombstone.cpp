@@ -1,3 +1,7 @@
+Google Git
+Sign in
+android / platform / system / core / a0570571c3b0292e740d331b3738716ad32ea461 / . / debuggerd / tombstone.cpp
+blob: d04b72113d8a2876f4972427b93b56e5c48688ec [file] [log] [blame]
 /*
  * Copyright (C) 2012-2014 The Android Open Source Project
  *
@@ -13,9 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #define LOG_TAG "DEBUG"
-
 #include <arpa/inet.h>
 #include <dirent.h>
 #include <errno.h>
@@ -31,37 +33,27 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
-
 #include <memory>
 #include <string>
-
 #include <private/android_filesystem_config.h>
-
 #include <base/stringprintf.h>
 #include <cutils/properties.h>
 #include <log/log.h>
 #include <log/logger.h>
 #include <log/logprint.h>
-
 #include <backtrace/Backtrace.h>
 #include <backtrace/BacktraceMap.h>
-
 #include <selinux/android.h>
-
 #include "backtrace.h"
 #include "elf_utils.h"
 #include "machine.h"
 #include "tombstone.h"
-
 #define STACK_WORDS 16
-
 #define MAX_TOMBSTONES  10
 #define TOMBSTONE_DIR   "/data/tombstones"
 #define TOMBSTONE_TEMPLATE (TOMBSTONE_DIR"/tombstone_%02d")
-
 // Must match the path defined in NativeCrashListener.java
 #define NCRASH_SOCKET_PATH "/data/system/ndebugsocket"
-
 static bool signal_has_si_addr(int sig) {
   switch (sig) {
     case SIGBUS:
@@ -74,7 +66,6 @@ static bool signal_has_si_addr(int sig) {
       return false;
   }
 }
-
 static const char* get_signame(int sig) {
   switch(sig) {
     case SIGABRT: return "SIGABRT";
@@ -91,7 +82,6 @@ static const char* get_signame(int sig) {
     default: return "?";
   }
 }
-
 static const char* get_sigcode(int signo, int code) {
   // Try the signal-specific codes...
   switch (signo) {
@@ -163,22 +153,15 @@ static const char* get_sigcode(int signo, int code) {
   // Then give up...
   return "?";
 }
-
 static void dump_header_info(log_t* log) {
   char fingerprint[PROPERTY_VALUE_MAX];
   char revision[PROPERTY_VALUE_MAX];
-  char cm_version[PROPERTY_VALUE_MAX];
-
-  property_get("ro.rr.version", cm_version, "unknown");
   property_get("ro.build.fingerprint", fingerprint, "unknown");
   property_get("ro.revision", revision, "unknown");
-
-  _LOG(log, logtype::HEADER, "CM Version: '%s'\n", cm_version);
   _LOG(log, logtype::HEADER, "Build fingerprint: '%s'\n", fingerprint);
   _LOG(log, logtype::HEADER, "Revision: '%s'\n", revision);
   _LOG(log, logtype::HEADER, "ABI: '%s'\n", ABI_STRING);
 }
-
 static void dump_signal_info(log_t* log, pid_t tid, int signal, int si_code) {
   siginfo_t si;
   memset(&si, 0, sizeof(si));
@@ -186,27 +169,22 @@ static void dump_signal_info(log_t* log, pid_t tid, int signal, int si_code) {
     _LOG(log, logtype::HEADER, "cannot get siginfo: %s\n", strerror(errno));
     return;
   }
-
   // bionic has to re-raise some signals, which overwrites the si_code with SI_TKILL.
   si.si_code = si_code;
-
   char addr_desc[32]; // ", fault addr 0x1234"
   if (signal_has_si_addr(signal)) {
     snprintf(addr_desc, sizeof(addr_desc), "%p", si.si_addr);
   } else {
     snprintf(addr_desc, sizeof(addr_desc), "--------");
   }
-
   _LOG(log, logtype::HEADER, "signal %d (%s), code %d (%s), fault addr %s\n",
        signal, get_signame(signal), si.si_code, get_sigcode(signal, si.si_code), addr_desc);
 }
-
 static void dump_thread_info(log_t* log, pid_t pid, pid_t tid) {
   char path[64];
   char threadnamebuf[1024];
   char* threadname = NULL;
   FILE *fp;
-
   snprintf(path, sizeof(path), "/proc/%d/comm", tid);
   if ((fp = fopen(path, "r"))) {
     threadname = fgets(threadnamebuf, sizeof(threadnamebuf), fp);
@@ -224,20 +202,16 @@ static void dump_thread_info(log_t* log, pid_t pid, pid_t tid) {
       && (!threadname[sizeof(logd) - 1] || (threadname[sizeof(logd) - 1] == '.'))) {
     log->should_retrieve_logcat = false;
   }
-
   char procnamebuf[1024];
   char* procname = NULL;
-
   snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
   if ((fp = fopen(path, "r"))) {
     procname = fgets(procnamebuf, sizeof(procnamebuf), fp);
     fclose(fp);
   }
-
   _LOG(log, logtype::HEADER, "pid: %d, tid: %d, name: %s  >>> %s <<<\n", pid, tid,
        threadname ? threadname : "UNKNOWN", procname ? procname : "UNKNOWN");
 }
-
 static void dump_stack_segment(
     Backtrace* backtrace, log_t* log, uintptr_t* sp, size_t words, int label) {
   // Read the data all at once.
@@ -254,7 +228,6 @@ static void dump_stack_segment(
       line += "     ";
     }
     line += android::base::StringPrintf("%" PRIPTR "  %" PRIPTR, *sp, stack_data[i]);
-
     backtrace_map_t map;
     backtrace->FillInMap(stack_data[i], &map);
     if (BacktraceMap::IsValid(map) && !map.name.empty()) {
@@ -270,11 +243,9 @@ static void dump_stack_segment(
       }
     }
     _LOG(log, logtype::STACK, "%s\n", line.c_str());
-
     *sp += sizeof(word_t);
   }
 }
-
 static void dump_stack(Backtrace* backtrace, log_t* log) {
   size_t first = 0, last;
   for (size_t i = 0; i < backtrace->NumFrames(); i++) {
@@ -290,11 +261,9 @@ static void dump_stack(Backtrace* backtrace, log_t* log) {
     return;
   }
   first--;
-
   // Dump a few words before the first frame.
   word_t sp = backtrace->GetFrame(first)->sp - STACK_WORDS * sizeof(word_t);
   dump_stack_segment(backtrace, log, &sp, STACK_WORDS, -1);
-
   // Dump a few words from all successive frames.
   // Only log the first 3 frames, put the rest in the tombstone.
   for (size_t i = first; i <= last; i++) {
@@ -319,7 +288,6 @@ static void dump_stack(Backtrace* backtrace, log_t* log) {
     }
   }
 }
-
 static std::string get_addr_string(uintptr_t addr) {
   std::string addr_str;
 #if defined(__LP64__)
@@ -331,7 +299,6 @@ static std::string get_addr_string(uintptr_t addr) {
 #endif
   return addr_str;
 }
-
 static void dump_all_maps(Backtrace* backtrace, BacktraceMap* map, log_t* log, pid_t tid) {
   bool print_fault_address_marker = false;
   uintptr_t addr = 0;
@@ -343,7 +310,6 @@ static void dump_all_maps(Backtrace* backtrace, BacktraceMap* map, log_t* log, p
   } else {
     _LOG(log, logtype::ERROR, "Cannot get siginfo for %d: %s\n", tid, strerror(errno));
   }
-
   _LOG(log, logtype::MAPS, "\n");
   if (!print_fault_address_marker) {
     _LOG(log, logtype::MAPS, "memory map:\n");
@@ -355,7 +321,6 @@ static void dump_all_maps(Backtrace* backtrace, BacktraceMap* map, log_t* log, p
       print_fault_address_marker = false;
     }
   }
-
   std::string line;
   for (BacktraceMap::const_iterator it = map->begin(); it != map->end(); ++it) {
     line = "    ";
@@ -409,31 +374,25 @@ static void dump_all_maps(Backtrace* backtrace, BacktraceMap* map, log_t* log, p
          get_addr_string(addr).c_str());
   }
 }
-
 static void dump_backtrace_and_stack(Backtrace* backtrace, log_t* log) {
   if (backtrace->NumFrames()) {
     _LOG(log, logtype::BACKTRACE, "\nbacktrace:\n");
     dump_backtrace_to_log(backtrace, log, "    ");
-
     _LOG(log, logtype::STACK, "\nstack:\n");
     dump_stack(backtrace, log);
   }
 }
-
 // Return true if some thread is not detached cleanly
 static bool dump_sibling_thread_report(
     log_t* log, pid_t pid, pid_t tid, int* total_sleep_time_usec, BacktraceMap* map) {
   char task_path[64];
-
   snprintf(task_path, sizeof(task_path), "/proc/%d/task", pid);
-
   DIR* d = opendir(task_path);
   // Bail early if the task directory cannot be opened
   if (d == NULL) {
     ALOGE("Cannot open /proc/%d/task\n", pid);
     return false;
   }
-
   bool detach_failed = false;
   struct dirent* de;
   while ((de = readdir(d)) != NULL) {
@@ -441,28 +400,23 @@ static bool dump_sibling_thread_report(
     if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) {
       continue;
     }
-
     // The main thread at fault has been handled individually
     char* end;
     pid_t new_tid = strtoul(de->d_name, &end, 10);
     if (*end || new_tid == tid) {
       continue;
     }
-
     // Skip this thread if cannot ptrace it
-    if (ptrace(PTRACE_ATTACH, new_tid, 0, 0) < 0) {
+    if (!ptrace_attach_thread(pid, new_tid)) {
       _LOG(log, logtype::ERROR, "ptrace attach to %d failed: %s\n", new_tid, strerror(errno));
       continue;
     }
-
     if (wait_for_sigstop(new_tid, total_sleep_time_usec, &detach_failed) == -1) {
       continue;
     }
-
     log->current_tid = new_tid;
     _LOG(log, logtype::THREAD, "--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---\n");
     dump_thread_info(log, pid, new_tid);
-
     dump_registers(log, new_tid);
     std::unique_ptr<Backtrace> backtrace(Backtrace::Create(pid, new_tid, map));
     if (backtrace->Unwind(0)) {
@@ -470,48 +424,37 @@ static bool dump_sibling_thread_report(
     } else {
       ALOGE("Unwind of sibling failed: pid = %d, tid = %d", pid, new_tid);
     }
-
     log->current_tid = log->crashed_tid;
-
     if (ptrace(PTRACE_DETACH, new_tid, 0, 0) != 0) {
       _LOG(log, logtype::ERROR, "ptrace detach from %d failed: %s\n", new_tid, strerror(errno));
       detach_failed = true;
     }
   }
-
   closedir(d);
   return detach_failed;
 }
-
 // Reads the contents of the specified log device, filters out the entries
 // that don't match the specified pid, and writes them to the tombstone file.
 //
 // If "tail" is non-zero, log the last "tail" number of lines.
 static EventTagMap* g_eventTagMap = NULL;
-
 static void dump_log_file(
     log_t* log, pid_t pid, const char* filename, unsigned int tail) {
   bool first = true;
   struct logger_list* logger_list;
-
   if (!log->should_retrieve_logcat) {
     return;
   }
-
   logger_list = android_logger_list_open(
       android_name_to_log_id(filename), ANDROID_LOG_RDONLY | ANDROID_LOG_NONBLOCK, tail, pid);
-
   if (!logger_list) {
     ALOGE("Unable to open %s: %s\n", filename, strerror(errno));
     return;
   }
-
   struct log_msg log_entry;
-
   while (true) {
     ssize_t actual = android_logger_list_read(logger_list, &log_entry);
     struct logger_entry* entry;
-
     if (actual < 0) {
       if (actual == -EINTR) {
         // interrupted by signal, retry
@@ -529,20 +472,16 @@ static void dump_log_file(
         strerror(errno));
       break;
     }
-
     // NOTE: if you ALOGV something here, this will spin forever,
     // because you will be writing as fast as you're reading.  Any
     // high-frequency debug diagnostics should just be written to
     // the tombstone file.
-
     entry = &log_entry.entry_v1;
-
     if (first) {
       _LOG(log, logtype::LOGS, "--------- %slog %s\n",
         tail ? "tail end of " : "", filename);
       first = false;
     }
-
     // Msg format is: <priority:1><tag:N>\0<message:N>\0
     //
     // We want to display it in the same format as "logcat -v threadtime"
@@ -553,14 +492,12 @@ static void dump_log_file(
       hdr_size = sizeof(log_entry.entry_v1);
     }
     char* msg = reinterpret_cast<char*>(log_entry.buf) + hdr_size;
-
     char timeBuf[32];
     time_t sec = static_cast<time_t>(entry->sec);
     struct tm tmBuf;
     struct tm* ptm;
     ptm = localtime_r(&sec, &tmBuf);
     strftime(timeBuf, sizeof(timeBuf), "%m-%d %H:%M:%S", ptm);
-
     if (log_entry.id() == LOG_ID_EVENTS) {
       if (!g_eventTagMap) {
         g_eventTagMap = android_openEventTagMap(EVENT_TAG_MAP_FILE);
@@ -573,19 +510,15 @@ static void dump_log_file(
          'I', e.tag, e.message);
       continue;
     }
-
     unsigned char prio = msg[0];
     char* tag = msg + 1;
     msg = tag + strlen(tag) + 1;
-
     // consume any trailing newlines
     char* nl = msg + strlen(msg) - 1;
     while (nl >= msg && *nl == '\n') {
       *nl-- = '\0';
     }
-
     char prioChar = (prio < strlen(kPrioChars) ? kPrioChars[prio] : '?');
-
     // Look for line breaks ('\n') and display each text line
     // on a separate line, prefixed with the header, like logcat does.
     do {
@@ -594,30 +527,24 @@ static void dump_log_file(
         *nl = '\0';
         ++nl;
       }
-
       _LOG(log, logtype::LOGS, "%s.%03d %5d %5d %c %-8s: %s\n",
          timeBuf, entry->nsec / 1000000, entry->pid, entry->tid,
          prioChar, tag, msg);
     } while ((msg = nl));
   }
-
   android_logger_list_free(logger_list);
 }
-
 // Dumps the logs generated by the specified pid to the tombstone, from both
 // "system" and "main" log devices.  Ideally we'd interleave the output.
 static void dump_logs(log_t* log, pid_t pid, unsigned int tail) {
   dump_log_file(log, pid, "system", tail);
   dump_log_file(log, pid, "main", tail);
 }
-
 static void dump_abort_message(Backtrace* backtrace, log_t* log, uintptr_t address) {
   if (address == 0) {
     return;
   }
-
   address += sizeof(size_t); // Skip the buffer length.
-
   char msg[512];
   memset(msg, 0, sizeof(msg));
   char* p = &msg[0];
@@ -628,15 +555,12 @@ static void dump_abort_message(Backtrace* backtrace, log_t* log, uintptr_t addre
       break;
     }
     address += sizeof(word_t);
-
     while (len > 0 && (*p++ = (data >> (sizeof(word_t) - len) * 8) & 0xff) != 0)
        len--;
   }
   msg[sizeof(msg) - 1] = '\0';
-
   _LOG(log, logtype::HEADER, "Abort message: '%s'\n", msg);
 }
-
 // Dumps all information about the specified pid to the tombstone.
 static bool dump_crash(log_t* log, pid_t pid, pid_t tid, int signal, int si_code,
                        uintptr_t abort_msg_address, bool dump_sibling_threads,
@@ -645,7 +569,6 @@ static bool dump_crash(log_t* log, pid_t pid, pid_t tid, int signal, int si_code
   char value[PROPERTY_VALUE_MAX];
   property_get("ro.debuggable", value, "0");
   bool want_logs = (value[0] == '1');
-
   if (log->amfd >= 0) {
     // Activity Manager protocol: binary 32-bit network-byte-order ints for the
     // pid and signal number, followed by the raw text of the dump, culminating
@@ -655,16 +578,13 @@ static bool dump_crash(log_t* log, pid_t pid, pid_t tid, int signal, int si_code
     datum = htonl(signal);
     TEMP_FAILURE_RETRY( write(log->amfd, &datum, 4) );
   }
-
   _LOG(log, logtype::HEADER,
        "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n");
   dump_header_info(log);
   dump_thread_info(log, pid, tid);
-
   if (signal) {
     dump_signal_info(log, tid, signal, si_code);
   }
-
   std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(pid));
   std::unique_ptr<Backtrace> backtrace(Backtrace::Create(pid, tid, map.get()));
   dump_abort_message(backtrace.get(), log, abort_msg_address);
@@ -678,20 +598,16 @@ static bool dump_crash(log_t* log, pid_t pid, pid_t tid, int signal, int si_code
   if (map.get() != nullptr) {
     dump_all_maps(backtrace.get(), map.get(), log, tid);
   }
-
   if (want_logs) {
     dump_logs(log, pid, 5);
   }
-
   bool detach_failed = false;
   if (dump_sibling_threads) {
     detach_failed = dump_sibling_thread_report(log, pid, tid, total_sleep_time_usec, map.get());
   }
-
   if (want_logs) {
     dump_logs(log, pid, 0);
   }
-
   // send EOD to the Activity Manager, then wait for its ack to avoid racing ahead
   // and killing the target out from under it
   if (log->amfd >= 0) {
@@ -700,10 +616,8 @@ static bool dump_crash(log_t* log, pid_t pid, pid_t tid, int signal, int si_code
     // 3 sec timeout reading the ack; we're fine if that happens
     TEMP_FAILURE_RETRY( read(log->amfd, &eodMarker, 1) );
   }
-
   return detach_failed;
 }
-
 // find_and_open_tombstone - find an available tombstone slot, if any, of the
 // form tombstone_XX where XX is 00 to MAX_TOMBSTONES-1, inclusive. If no
 // file is available, we reuse the least-recently-modified file.
@@ -717,7 +631,6 @@ static char* find_and_open_tombstone(int* fd) {
   struct stat oldest_sb;
   for (int i = 0; i < MAX_TOMBSTONES; i++) {
     snprintf(path, sizeof(path), TOMBSTONE_TEMPLATE, i);
-
     struct stat sb;
     if (!stat(path, &sb)) {
       if (oldest < 0 || sb.st_mtime < oldest_sb.st_mtime) {
@@ -728,20 +641,16 @@ static char* find_and_open_tombstone(int* fd) {
     }
     if (errno != ENOENT)
       continue;
-
     *fd = open(path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW | O_CLOEXEC, 0600);
     if (*fd < 0)
       continue;   // raced ?
-
     fchown(*fd, AID_SYSTEM, AID_SYSTEM);
     return strdup(path);
   }
-
   if (oldest < 0) {
     ALOGE("Failed to find a valid tombstone, default to using tombstone 0.\n");
     oldest = 0;
   }
-
   // we didn't find an available file, so we clobber the oldest one
   snprintf(path, sizeof(path), TOMBSTONE_TEMPLATE, oldest);
   *fd = open(path, O_CREAT | O_TRUNC | O_WRONLY | O_NOFOLLOW | O_CLOEXEC, 0600);
@@ -752,13 +661,11 @@ static char* find_and_open_tombstone(int* fd) {
   fchown(*fd, AID_SYSTEM, AID_SYSTEM);
   return strdup(path);
 }
-
 static int activity_manager_connect() {
   int amfd = socket(PF_UNIX, SOCK_STREAM, 0);
   if (amfd >= 0) {
     struct sockaddr_un address;
     int err;
-
     memset(&address, 0, sizeof(address));
     address.sun_family = AF_UNIX;
     strncpy(address.sun_path, NCRASH_SOCKET_PATH, sizeof(address.sun_path));
@@ -779,27 +686,21 @@ static int activity_manager_connect() {
       amfd = -1;
     }
   }
-
   return amfd;
 }
-
 char* engrave_tombstone(pid_t pid, pid_t tid, int signal, int original_si_code,
                         uintptr_t abort_msg_address, bool dump_sibling_threads,
                         bool* detach_failed, int* total_sleep_time_usec) {
-
   log_t log;
   log.current_tid = tid;
   log.crashed_tid = tid;
-
   int fd = -1;
   char* path = find_and_open_tombstone(&fd);
-
   if (fd < 0) {
     _LOG(&log, logtype::ERROR, "Skipping tombstone write, nothing to do.\n");
     *detach_failed = false;
     return NULL;
   }
-
   log.tfd = fd;
   // Preserve amfd since it can be modified through the calls below without
   // being closed.
@@ -807,12 +708,12 @@ char* engrave_tombstone(pid_t pid, pid_t tid, int signal, int original_si_code,
   log.amfd = amfd;
   *detach_failed = dump_crash(&log, pid, tid, signal, original_si_code, abort_msg_address,
                               dump_sibling_threads, total_sleep_time_usec);
-
   _LOG(&log, logtype::BACKTRACE, "\nTombstone written to: %s\n", path);
-
   // Either of these file descriptors can be -1, any error is ignored.
   close(amfd);
   close(fd);
-
   return path;
 }
+Powered by Gitiles
+txt
+json
