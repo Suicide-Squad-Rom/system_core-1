@@ -167,13 +167,10 @@ static const char* get_sigcode(int signo, int code) {
 static void dump_header_info(log_t* log) {
   char fingerprint[PROPERTY_VALUE_MAX];
   char revision[PROPERTY_VALUE_MAX];
-  char cm_version[PROPERTY_VALUE_MAX];
 
-  property_get("ro.rr.version", cm_version, "unknown");
   property_get("ro.build.fingerprint", fingerprint, "unknown");
   property_get("ro.revision", revision, "unknown");
 
-  _LOG(log, logtype::HEADER, "CM Version: '%s'\n", cm_version);
   _LOG(log, logtype::HEADER, "Build fingerprint: '%s'\n", fingerprint);
   _LOG(log, logtype::HEADER, "Revision: '%s'\n", revision);
   _LOG(log, logtype::HEADER, "ABI: '%s'\n", ABI_STRING);
@@ -450,7 +447,7 @@ static bool dump_sibling_thread_report(
     }
 
     // Skip this thread if cannot ptrace it
-    if (ptrace(PTRACE_ATTACH, new_tid, 0, 0) < 0) {
+    if (!ptrace_attach_thread(pid, new_tid)) {
       _LOG(log, logtype::ERROR, "ptrace attach to %d failed: %s\n", new_tid, strerror(errno));
       continue;
     }
